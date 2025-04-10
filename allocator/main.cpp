@@ -23,7 +23,7 @@ public:
 
     MyClass(const size_t size_)
     {
-        std::cout << "Вызов конструктора" << std::endl;
+        std::cout << "Calling the constructor" << std::endl;
         size = size_;
         arr = (int*)operator new[](size * sizeof(int));
     }
@@ -36,7 +36,7 @@ public:
 
     ~MyClass()
     {
-        std::cout << "Вызов деструктора " << std::endl;
+        std::cout << "Calling the destructor " << std::endl;
         operator delete[](arr);
     }
 
@@ -107,7 +107,7 @@ int main()
         }
         else
         {
-            std::cerr << "Ошибка выделения памяти";
+            std::cerr << "Memory allocation error";
         }
 
         //в случае с режимом блоков кучи с неограниченными блоками можем много раз выделять блоки такого размены
@@ -123,7 +123,7 @@ int main()
         }
         else
         {
-            std::cerr << "Ошибка выделения памяти";
+            std::cerr << "Memory allocation error";
         }
 
 
@@ -149,7 +149,7 @@ int main()
         }
         else
         {
-            std::cerr << "Ошибка выделения памяти";
+            std::cerr << "Memory allocation error";
         }
 
         std::cout << std::endl;
@@ -166,7 +166,7 @@ int main()
         }
         else
         {
-            std::cerr << "Ошибка выделения памяти";
+            std::cerr << "Memory allocation error";
         }
 
         //если попытаться использовать 3 блок памяти из пула которого нет то будет ошибка (которая ловится блоком catch)
@@ -206,7 +206,7 @@ int main()
         }
         else
         {
-            std::cerr << "Ошибка выделения памяти";
+            std::cerr << "Memory allocation error";
         }
 
         //после этого по идее, использовал 1 блок размером 40 байт
@@ -222,7 +222,7 @@ int main()
         size_t sizeOfArrInClass = 100000;
         MyClass* obj1 = new MyClass(sizeOfArrInClass);
 
-        std::cout << "Введите " << sizeOfArrInClass << " элементов массива" << std::endl;
+        std::cout << "Enter " << sizeOfArrInClass << " array elements" << std::endl;
         for (int i = 0, number = 0; i < sizeOfArrInClass; i++)
         {
             //std::cin >> number;
@@ -237,10 +237,10 @@ int main()
         delete obj1;
     }
     catch (const std::bad_alloc& e) {
-        std::cerr << "Исключение : " << e.what() << std::endl;
+        std::cerr << "Exception : " << e.what() << std::endl;
         return 333;
     }
-     std::cout << "Нажмите  клавишу enter чтобы завершить программу";
+     std::cout << "Press the enter key to terminate the program";
      std::cin.get();
     return 0;
 }
