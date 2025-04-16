@@ -1,14 +1,14 @@
 #include <iostream>
 #include "Allocator.h"
 #include "DataTypes.h"
-#include <new>       // std::set_new_handler std::bad_alloc
+#include <new>       // std::set_new_handler std::bad_alloc (set_new_handler - устанавливает функцию обработчик для исключения new)
 #include <ctime>
 
 
 
 void my_out_of_memory() {
     std::cerr << "Ошибка: недостаточно памяти для выделения." << std::endl;
-    throw std::bad_alloc();
+    throw std::bad_alloc();  // bad_alloc - исключение вызывается при неудачном выделении памяти
 }
 
 class MyClass
@@ -51,9 +51,9 @@ int main()
 {
    
 
-    //явно задаю функцию, которая будет вызываться, если оператор new не сможет по какой то
-    // причиее выделать память, функция обработчик для ошибки new set_new_handler устанавливает функицю
-    // как ту которая будет вызываться при ошибке my_out_of_memory
+    //функция обработчик функцию, будет вызываться, если оператор new не сможет 
+    // выделать память, функция обработчик для ошибки new set_new_handler устанавливает функицю
+    // которая будет вызываться при ошибке my_out_of_memory
     std::set_new_handler(my_out_of_memory);
 
     setlocale(LC_ALL, "ru");
@@ -93,7 +93,7 @@ int main()
         //если в списке не осталось свободной памяти, то будет выделтся ещё из кучи, это значит что данный режим медленнее всех,
         //т.к. тут выделяются новые блоки, нет фиксированного количества
 
-        Allocator allocatorHeapBloks(40); //в будущем хочу использовать память для создания массива из 10 элементов типа int
+        Allocator allocatorHeapBloks(50); //в будущем хочу использовать память для создания массива из 10 элементов типа int
 
 
         int* numbers = (int*)allocatorHeapBloks.Allocate(10 * sizeof(int)); //если будет 11 то будет ошибка
@@ -102,7 +102,7 @@ int main()
             for (int i = 0; i < 10; i++)
             {
                 numbers[i] = i + 1;
-                std::cout << "numbers[ " << i << " ] = " << numbers[i] << std::endl;
+                std::cout << "HeapBloks_numbers[ " << i << " ] = " << numbers[i] << std::endl;
             }
         }
         else
@@ -118,7 +118,7 @@ int main()
             for (int i = 0; i < 10; i++)
             {
                 numbersTry[i] = i + 1;
-                std::cout << "numbersTry[ " << i << " ] = " << numbersTry[i] << std::endl;
+                std::cout << "HeapBloks_numbersTry[ " << i << " ] = " << numbersTry[i] << std::endl;
             }
         }
         else
@@ -137,14 +137,14 @@ int main()
         //чуть чуть быстрее прошлого режима, т.к. тут не создаются новые блоки а в самом начале выделяется память под 2 блока
         // 40 байт, или столько сколько надо, например можно 10000 байт 50 блоков и больше, главное чтобы у компа хватило ресурсов
 
-        Allocator allocatorHeapPool(40, 2);
+        Allocator allocatorHeapPool(50, 2);
         int* numbers1 = (int*)allocatorHeapPool.Allocate(10 * sizeof(int)); //если будет 11 то будет ошибка
         if (numbers1)
         {
             for (int i = 0; i < 10; i++)
             {
                 numbers1[i] = i + 1;
-                std::cout << "numbers1[ " << i << " ] = " << numbers1[i] << std::endl;
+                std::cout << "HeapPool_numbers1[ " << i << " ] = " << numbers1[i] << std::endl;
             }
         }
         else
@@ -161,7 +161,7 @@ int main()
             for (int i = 0; i < 8; i++)
             {
                 numbers2[i] = i + 1;
-                std::cout << "numbers2[ " << i << " ] = " << numbers2[i] << std::endl;
+                std::cout << "HeapPool_numbers2[ " << i << " ] = " << numbers2[i] << std::endl;
             }
         }
         else
@@ -187,11 +187,11 @@ int main()
         //    std::cerr << "Ошибка выделения памяти";
         //}
 
-        // Режим статического пула с 2, 40 байтовыми блоками
+        // Режим статического пула с 2, 50 байтовыми блоками
         // быстрее всех, т.к. память выделяется не из кучи а из статической памяти, тоже имеет фиксированное количество блоков
 
-        char staticMemoryPool[40 * 2];
-        Allocator allocatorStaticPool(40, 2, staticMemoryPool);
+        char staticMemoryPool[50 * 2];
+        Allocator allocatorStaticPool(50, 2, staticMemoryPool);
 
         //тут я получвется создал аллокатор из 80 байт, из типа char
         //но выделяю память для int, ничего страшного, ведь я выделаю не больше 40 байт для int и явно преобразую в int* 
