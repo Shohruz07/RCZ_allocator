@@ -3,12 +3,50 @@
 #include "DataTypes.h"
 #include <new>       // std::set_new_handler std::bad_alloc (set_new_handler - устанавливает функцию обработчик для исключения new)
 #include <ctime>
-
+#include <vector>
 
 
 void my_out_of_memory() {
     std::cerr << "Ошибка: недостаточно памяти для выделения." << std::endl;
     throw std::bad_alloc();  // bad_alloc - исключение вызывается при неудачном выделении памяти
+}
+
+class TestClass{
+    DECLARE_ALLOCATOR  // подключаем Allocator к TestClass
+    int data;
+public:
+    TestClass() : data(42){
+        // просто чтобы видеть, что конструктор вызван
+        std::cout << "[TestClass] ctor, data=" << data << "\n";
+    }
+    ~TestClass() {
+        std::cout << "[TestClass] dtor\n";
+    }
+    void Hello() const {
+        std::cout << "[TestClass] Hello!\n";
+    }
+    // Публичный геттер для доступа к приватному _allocator
+    static Allocator& GetAllocator() {
+        return _allocator;
+    }
+};
+
+
+// создаём для TestClass аллокатор на 5 блоков по sizeof(TestClass)
+IMPLEMENT_ALLOCATOR(TestClass, 5, nullptr)
+
+// -----------------------------------------------------------------------------
+// Функция для вывода статистики аллокатора TestClass
+// -----------------------------------------------------------------------------
+void PrintAllocatorStats() {
+    Allocator& A = TestClass::GetAllocator();
+    std::cout << "\n--- Статистика аллокатора TestClass ---\n"
+              << "Block size       : " << A.GetBlockSize()    << "\n"
+              << "Max objects      : " << A.GetBlockCount()   << "\n"
+              << "Blocks in use    : " << A.GetBlocksInUse()  << "\n"
+              << "Total allocations: " << A.GetAllocations()  << "\n"
+              << "Total deallocs   : " << A.GetDeallocations()<< "\n"
+              << "---------------------------------------\n\n";
 }
 
 class MyClass
@@ -59,7 +97,41 @@ int main()
     setlocale(LC_ALL, "ru");
     srand(time(NULL));
 
+    try {
+        // 1) Создаём 5 объектов TestClass подряд
+        std::vector<TestClass*> vec;
+        for (int i = 0; i < 5; ++i) {
+            vec.push_back(new TestClass());
+        }
+        PrintAllocatorStats();
 
+        // 2) Удаляем три объекта
+        for (int i = 0; i < 3; ++i) {
+            delete vec[i];
+        }
+        PrintAllocatorStats();
+
+        // 3) Пытаемся выделить 6-й объект (превышаем лимит в 5 блоков)
+        std::cout << "Пробуем выделить ещё один объект (6-й)...\n";
+        TestClass* p6 = new TestClass();  // здесь должно вылететь std::bad_alloc
+        (void)p6;
+    }
+    catch (const std::bad_alloc& e) {
+        std::cerr << "Поймано исключение std::bad_alloc: " << e.what() << "\n";
+    }
+
+    // 4) Дополнительная проверка: массив объектов
+    try {
+        std::cout << "\nПробуем выделить массив TestClass[1000000]...\n";
+        TestClass* big = new TestClass[1000000];  // скорее всего бросит std::bad_alloc
+        delete[] big;
+    }
+    catch (const std::bad_alloc& e) {
+        std::cerr << "Поймано при массиве: " << e.what() << "\n";
+    }
+
+    std::cout << "\nРабота программы завершена.\n";
+/*
     try {
 
         //тестирование отлавливания исключений, вместо этого тестирования можно сделать ошибку 
@@ -95,10 +167,10 @@ int main()
         //в каждом из режимов - этот free_list нужен чтобы решить проблему фрагментации памяти и увеличить скорость работы. при этом,
         //если в списке не осталось свободной памяти, то будет выделтся ещё из кучи, это значит что данный режим медленнее всех,
         //т.к. тут выделяются новые блоки, нет фиксированного количества
-
+/*
         Allocator allocatorHeapBloks(50); //в будущем хочу использовать память для создания массива из 10 элементов типа int
 
-        /*     Режим блоков кучи      */
+        /*     Режим блоков кучи      *//*
         int* numbers = (int*)allocatorHeapBloks.Allocate(10 * sizeof(int)); //если будет 13 то будет ошибка (будет равно 13 * 4 = 52)
         if (numbers)
         {
@@ -146,7 +218,7 @@ int main()
         Память не возвращается в глобальную кучу, что предотвращает фрагментацию.
         */
 
-        /*      Режим пула кучи        */
+        /*      Режим пула кучи        *//*
         Allocator allocatorHeapPool(50, 2);
         int* numbers1 = (int*)allocatorHeapPool.Allocate(10 * sizeof(int)); //если будет 13 то будет ошибка
         if (numbers1)
@@ -203,13 +275,13 @@ int main()
 */
         // Режим статического пула с 2, 50 байтовыми блоками
         // быстрее всех, т.к. память выделяется не из кучи а из статической памяти, тоже имеет фиксированное количество блоков
-
-        char staticMemoryPool[50 * 2];
+        /*   Статический пул  *//*
+        char staticMemoryPool[50 * 2]; // 50 байтов, 2 блока 
         Allocator allocatorStaticPool(50, 2, staticMemoryPool);
 
-        //тут я получвется создал аллокатор из 80 байт, из типа char
+        //тут я получается создал аллокатор из 100 байт, из типа char
         //но выделяю память для int, ничего страшного, ведь я выделаю не больше 40 байт для int и явно преобразую в int* 
-        int* numbersFromStatic = (int*)allocatorStaticPool.Allocate(10 * sizeof(int));
+        int* numbersFromStatic = (int*)allocatorStaticPool.Allocate(10 * sizeof(int)); //10* Sizeof(int) = 40
         if (numbersFromStatic)
         {
             for (int i = 0; i < 10; i++)
@@ -224,19 +296,19 @@ int main()
         }
 
         //после этого по идее, использовал 1 блок размером 40 байт
-        //пытаюсь использовать 2 блок и беру из него 10 байт всего для массива char
-        char* charactersFromStatic = (char*)allocatorStaticPool.Allocate(10 * sizeof(char));
+        //пытаюсь использовать 2 блок и беру из него 20 байт всего для массива char
+        char* charactersFromStatic = (char*)allocatorStaticPool.Allocate(10 * sizeof(char));// 10 * sizeof(char) = 20 байт
 
         //вроде бы осталось ещё 30 байт для того что хочешь, но, т.к. этот блок задейстован, то
         //при попытке использовать эти 30 байт будет ошибка (она кстати отлавливается блоком catch)
-        //char* charactersFromSratic1 = (char*)allocatorStaticPool.Allocate(1 * sizeof(char));
+        
 
 
+        
+        size_t sizeOfArrInClass = 100000; // 
+        MyClass* obj1 = new MyClass(sizeOfArrInClass); // Создал объекта myclass
 
-        size_t sizeOfArrInClass = 100000;
-        MyClass* obj1 = new MyClass(sizeOfArrInClass);
-
-        std::cout << "Enter " << sizeOfArrInClass << " array elements" << std::endl;
+        std::cout << "Enter " << sizeOfArrInClass << " array elements" << std::endl; 
         for (int i = 0, number = 0; i < sizeOfArrInClass; i++)
         {
             //std::cin >> number;
@@ -250,11 +322,12 @@ int main()
 
         delete obj1;
     }
-    catch (const std::bad_alloc& e) {
+    catch (const std::bad_alloc& e) { // 
         std::cerr << "Exception : " << e.what() << std::endl;
         return 333;
     }
      std::cout << "Press the enter key to terminate the program";
      std::cin.get();
+*/
     return 0;
 }
