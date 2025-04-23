@@ -27,6 +27,9 @@ public:
     /// @return     Returns pointer to the block. Otherwise NULL if unsuccessful.
     void* Allocate(size_t size);
 
+    /// Максимальный размер пула (0 — режим без лимита)
+    UINT GetMaxObjects() const { return m_maxObjects; }
+
     /// Return a pointer to the memory pool. 
     /// @param[in]  pBlock - block of memory deallocate (i.e push onto free-list)
     void Deallocate(void* pBlock);

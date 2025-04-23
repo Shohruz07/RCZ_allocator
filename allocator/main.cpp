@@ -4,7 +4,9 @@
 #include <new>       // std::set_new_handler std::bad_alloc (set_new_handler - устанавливает функцию обработчик для исключения new)
 #include <ctime>
 #include <vector>
-
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 void my_out_of_memory() {
     std::cerr << "Ошибка: недостаточно памяти для выделения." << std::endl;
@@ -17,13 +19,10 @@ class TestClass{
 public:
     TestClass() : data(42){
         // просто чтобы видеть, что конструктор вызван
-        std::cout << "[TestClass] ctor, data=" << data << "\n";
+        //std::cout << "[TestClass] ctor, data=" << data << "\n";
     }
     ~TestClass() {
-        std::cout << "[TestClass] dtor\n";
-    }
-    void Hello() const {
-        std::cout << "[TestClass] Hello!\n";
+        //std::cout << "[TestClass] dtor\n";
     }
     // Публичный геттер для доступа к приватному _allocator
     static Allocator& GetAllocator() {
@@ -41,12 +40,13 @@ IMPLEMENT_ALLOCATOR(TestClass, 5, nullptr)
 void PrintAllocatorStats() {
     Allocator& A = TestClass::GetAllocator();
     std::cout << "\n--- Статистика аллокатора TestClass ---\n"
-              << "Block size       : " << A.GetBlockSize()    << "\n"
-              << "Max objects      : " << A.GetBlockCount()   << "\n"
-              << "Blocks in use    : " << A.GetBlocksInUse()  << "\n"
-              << "Total allocations: " << A.GetAllocations()  << "\n"
-              << "Total deallocs   : " << A.GetDeallocations()<< "\n"
-              << "---------------------------------------\n\n";
+              << "Block size       : " << A.GetBlockSize()     << "\n"
+              << "Max objects      : " << A.GetMaxObjects()    << "\n"
+              << "Blocks created   : " << A.GetBlockCount()    << "\n"
+              << "Blocks in use    : " << A.GetBlocksInUse()   << "\n"
+              << "Total allocations: " << A.GetAllocations()   << "\n"
+              << "Total deallocs   : " << A.GetDeallocations() << "\n"
+              << "---------------------------------------\n";
 }
 
 class MyClass
@@ -87,48 +87,74 @@ IMPLEMENT_ALLOCATOR(MyClass, 0, 0)
 
 int main()
 {
-   
+    #ifdef _WIN32
+    // переключаем на UTF-8
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
 
     //функция обработчик функцию, будет вызываться, если оператор new не сможет 
     // выделать память, функция обработчик для ошибки new set_new_handler устанавливает функицю
     // которая будет вызываться при ошибке my_out_of_memory
     std::set_new_handler(my_out_of_memory);
 
-    setlocale(LC_ALL, "ru");
-    srand(time(NULL));
+    //setlocale(LC_ALL, "ru");
+    srand(time(NULL)); 
 
-    try {
-        // 1) Создаём 5 объектов TestClass подряд
-        std::vector<TestClass*> vec;
+    // ТЕСТ 1: пул TestClass (5 объектов)
+    {
+        TestClass* arr[5];
+
+        // 1) выделяем 5 объектов
         for (int i = 0; i < 5; ++i) {
-            vec.push_back(new TestClass());
+            arr[i] = new TestClass();
         }
+        std::cout << "[TEST 1] После создания 5 объектов TestClass:\n";
         PrintAllocatorStats();
 
-        // 2) Удаляем три объекта
-        for (int i = 0; i < 3; ++i) {
-            delete vec[i];
+        // 2) удаляем их же → они вернулись в free-list
+        for (auto* p : arr) {
+            delete p;
         }
+        std::cout << "[TEST 1] После удаления 5 объектов TestClass:\n";
         PrintAllocatorStats();
-
-        // 3) Пытаемся выделить 6-й объект (превышаем лимит в 5 блоков)
-        std::cout << "Пробуем выделить ещё один объект (6-й)...\n";
-        TestClass* p6 = new TestClass();  // здесь должно вылететь std::bad_alloc
-        (void)p6;
+        
+         // 3) пробуем создать 6-й — free-list не пуст, берём освобождённый блок
+        try {
+            std::cout << "[TEST 1] Пробуем выделить 6-й объект: ";
+            TestClass* p6 = new TestClass();
+            (void)p6;
+            std::cout << "успешно (неожиданно) потому что он взял из free list после удаление 5 объектов попал туда\n";
+        }
+        catch (const std::bad_alloc&) {
+            std::cout << "поймано std::bad_alloc\n";
+        }
     }
-    catch (const std::bad_alloc& e) {
-        std::cerr << "Поймано исключение std::bad_alloc: " << e.what() << "\n";
-    }
 
-    // 4) Дополнительная проверка: массив объектов
+    //  ТЕСТ 2: raw new[] без конструкторов 
     try {
-        std::cout << "\nПробуем выделить массив TestClass[1000000]...\n";
-        TestClass* big = new TestClass[1000000];  // скорее всего бросит std::bad_alloc
-        delete[] big;
+        std::cout << "[TEST 2] raw operator new[] очень большого размера: ";
+        void* raw = ::operator new[](static_cast<size_t>(-1));
+        ::operator delete[](raw);
+        std::cout << "успешно (неожиданно)\n";
     }
-    catch (const std::bad_alloc& e) {
-        std::cerr << "Поймано при массиве: " << e.what() << "\n";
+    catch (const std::bad_alloc&) {
+        std::cout << "поймано std::bad_alloc\n";
     }
+
+    // ====== (Опционально) ТЕСТ 3: MyClass ======
+   /* 
+    try {
+        size_t bigN = 100000000; // например
+        std::cout << "[TEST 3] MyClass bigN=" << bigN << ": ";
+        MyClass* M = new MyClass(bigN);
+        delete M;
+        std::cout << "OK\n";
+    }
+    catch (const std::bad_alloc&) {
+        std::cout << "MyClass: caught std::bad_alloc\n";
+    }
+   */ 
 
     std::cout << "\nРабота программы завершена.\n";
 /*
